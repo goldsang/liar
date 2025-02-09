@@ -8,7 +8,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js"></script>
     <style>
         body { font-family: Arial, sans-serif; text-align: center; margin: 30px; background-color: #f4f4f4; }
-        #game-container { background: white; padding: 20px; border-radius: 10px; display: inline-block; }
+        #login-container, #game-container { background: white; padding: 20px; border-radius: 10px; display: inline-block; }
         button { padding: 10px; font-size: 16px; margin-top: 10px; cursor: pointer; }
         #chat-box { width: 100%; height: 200px; overflow-y: scroll; border: 1px solid #ddd; padding: 10px; text-align: left; }
         input { width: 80%; padding: 10px; }
@@ -17,12 +17,19 @@
 </head>
 <body>
 
-    <h1>랜덤 라이어 게임</h1>
-    <div id="game-container">
+    <!-- 로그인 화면 -->
+    <div id="login-container">
+        <h1>라이어 게임</h1>
+        <input type="text" id="nickname" placeholder="닉네임 입력" />
+        <button onclick="login()">게임 참가</button>
+    </div>
+
+    <!-- 게임 화면 (로그인 후 표시됨) -->
+    <div id="game-container" style="display: none;">
         <h2>주제어: <span id="main-word">???</span></h2>
         <h3>당신의 단어: <span id="sub-word">???</span></h3>
-        <button onclick="joinGame()">게임 참가</button>
         <p>현재 턴: <span id="current-turn">---</span></p>
+        <button onclick="startGame()">게임 시작</button>
     </div>
 
     <h2>채팅</h2>
@@ -47,47 +54,37 @@
         const app = firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
-        // 🔹 주제어 & 제시어 데이터
-        const wordData = {
-    "과일": ["사과", "바나나", "포도", "수박", "귤", "복숭아", "체리", "파인애플", "망고", "자두"],
-    "채소": ["당근", "양파", "감자", "고구마", "상추", "브로콜리", "오이", "배추", "무", "파프리카"],
-    "음식": ["김치", "떡볶이", "피자", "햄버거", "짜장면", "파스타", "불고기", "초밥", "샌드위치", "라면"],
-    "동물": ["강아지", "고양이", "토끼", "호랑이", "사자", "코끼리", "기린", "판다", "펭귄", "수달"],
-    "탈것": ["자동차", "비행기", "기차", "자전거", "버스", "트럭", "오토바이", "요트", "배", "트램"],
-    "직업": ["의사", "경찰", "소방관", "선생님", "배우", "가수", "운동선수", "프로그래머", "요리사", "파일럿"],
-    "도구": ["망치", "드라이버", "가위", "붓", "칼", "렌치", "도끼", "톱", "송곳", "자"],
-    "장소": ["학교", "병원", "공원", "도서관", "영화관", "놀이공원", "카페", "식당", "경찰서", "해변"],
-    "스포츠": ["축구", "야구", "농구", "배구", "테니스", "골프", "태권도", "복싱", "수영", "스키"],
-    "악기": ["피아노", "기타", "드럼", "바이올린", "트럼펫", "플루트", "첼로", "클라리넷", "하모니카", "색소폰"],
-    "전자기기": ["스마트폰", "노트북", "태블릿", "스마트워치", "텔레비전", "카메라", "게임기", "키보드", "마우스", "프린터"]
-};
+        let playerId = "";
+        let playerNickname = "";
+        let isLiar = false;
+        let playerList = [];
+        let turnIndex = 0;
+        let timerInterval;
 
-        let playerId = Math.random().toString(36).substr(2, 6); // 랜덤 플레이어 ID 생성
-        let isLiar = false; // 라이어 여부
-        let playerList = []; // 참가자 리스트
-        let turnIndex = 0; // 현재 턴 인덱스
-        let timerInterval; // 타이머 변수
+        function login() {
+            playerNickname = document.getElementById("nickname").value.trim();
+            if (playerNickname === "") {
+                alert("닉네임을 입력하세요!");
+                return;
+            }
 
-        function joinGame() {
-            db.ref("game").once("value", (snapshot) => {
-                if (!snapshot.exists()) {
-                    startNewGame();
-                } else {
-                    assignWord(snapshot.val());
-                }
-            });
+            playerId = Math.random().toString(36).substr(2, 6); // 랜덤 플레이어 ID
+            db.ref("players/" + playerId).set({ id: playerId, nickname: playerNickname });
 
-            // 플레이어 목록에 추가
-            db.ref("players/" + playerId).set({ id: playerId });
+            document.getElementById("login-container").style.display = "none";
+            document.getElementById("game-container").style.display = "block";
+
             db.ref("players").once("value", (snapshot) => {
                 playerList = Object.keys(snapshot.val());
                 if (playerList.length === 1) {
-                    startTurn();
+                    startGame();
                 }
             });
         }
 
-        function startNewGame() {
+        function startGame() {
+            constwordData = { "과일": ["사과", "바나나", "포도", "수박", "귤", "복숭아", "체리", "파인애플", "망고", "자두"], "채소": ["당근", "양파", "감자", "고구마", "상추", "브로콜리", "오이", "배추", "무", "파프리카"], "음식": ["김치", "떡볶이", "피자", "햄버거", "짜장면", "파스타", "불고기", "초밥", "샌드위치", "라면"], "동물": ["강아지", "고양이", "토끼", "호랑이", "사자", "코끼리", "기린", "판다", "펭귄", "수달"], "탈것": ["자동차", "비행기", "기차", "자전거", "버스", "트럭", "오토바이", "요트", "배", "트램"], "직업": ["의사", "경찰", "소방관", "선생님", "배우", "가수", "운동선수", "프로그래머", "요리사", "파일럿"], "도구": ["망치", "드라이버", "가위", "붓", "칼", "렌치", "도끼", "톱", "송곳", "자"], "장소": ["학교", "병원", "공원", "도서관", "영화관", "놀이공원", "카페", "식당", "경찰서", "해변"], "스포츠": ["축구", "야구", "농구", "배구", "테니스", "골프", "태권도", "복싱", "수영", "스키"], "악기": ["피아노", "기타", "드럼", "바이올린", "트럼펫", "플루트", "첼로", "클라리넷", "하모니카", "색소폰"], "전자기기": ["스마트폰", "노트북", "태블릿", "스마트워치", "텔레비전", "카메라", "게임기", "키보드", "마우스", "프린터"] };
+
             const mainWords = Object.keys(wordData);
             const randomMain = mainWords[Math.floor(Math.random() * mainWords.length)];
             const subWords = wordData[randomMain];
@@ -96,7 +93,7 @@
             db.ref("game").set({
                 mainWord: randomMain,
                 subWord: randomSub,
-                liar: Math.random().toString(36).substr(2, 6) // 랜덤 라이어 ID
+                liar: playerList[Math.floor(Math.random() * playerList.length)]
             });
 
             assignWord({ mainWord: randomMain, subWord: randomSub, liar: playerId });
@@ -128,7 +125,7 @@
         function sendMessage() {
             const message = document.getElementById("chat-input").value;
             if (message.trim() !== "") {
-                db.ref("chat").push({ player: playerId, text: message });
+                db.ref("chat").push({ player: playerNickname, text: message });
                 document.getElementById("chat-input").value = "";
                 turnIndex = (turnIndex + 1) % playerList.length;
                 startTurn();
